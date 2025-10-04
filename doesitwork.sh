@@ -1,22 +1,12 @@
 #!/bin/bash
 set -e
 
-
-#if [ $# -ne 1 ]; then
- #   echo "Usage: $0 <path_to_directory>"
-  #  echo "Example: $0 /home/user/my_folder"
-   # exit 1
-#fi
-
-TARGET_DIR="$1"
+echo "Write a path to directory:"
+read TARGET_DIR
 if ! [ -d "$TARGET_DIR" ]; then
 	echo "There is not folder in such path"
 	exit 1
 fi
-
-
-CAPACITY="$2"
-LIMIT="$3"
 archive_old_files() {
     local dir="$1"
     local count="$2"
@@ -43,13 +33,10 @@ archive_old_files() {
         return 1
     fi
     
-    # Создаем имя архива с timestamp
     local archive_name="old_files_archive_$(date +%Y%m%d_%H%M%S).tar.gz"
     local archive_path="$backup_dir/$archive_name"
     
-    # Создаем архив
-    #echo "Creating archive: $archive_name"
-    #echo "Files to archive:"
+
     cat "$temp_list"
     
     # Создаем архив из файлов в списке (корректная обработка пробелов)
@@ -71,7 +58,6 @@ archive_old_files() {
     fi
 }
 
-#echo "$Capacity"
 IMAGE_NAME="limited_log.img"
 IMAGE_PATH="$TARGET_DIR/$IMAGE_NAME"
 MOUNT_PATH="$TARGET_DIR"
@@ -79,53 +65,47 @@ MOUNT_PATH="$TARGET_DIR"
 # Check if image already exists
 if [ -f "$IMAGE_PATH" ] || mount | grep -q "$MOUNT_PATH"; then
     echo "Directory already framed!"
-    
-    # Check if the image is currently mounted
-    #if mount | grep -q "$IMAGE_PATH"; then
-        
-        
-        # Get disk usage info
-        #CURRENT_USAGE_KB=$(du -s "$MOUNT_PATH" 2>/dev/null | awk '{print $1}')
+ 
         df -h "$MOUNT_PATH" | awk 'NR==2 {print $5}'
-        #CURRENT_USAGE_PROC=$(df -h "$MOUNT_PATH" | awk 'NR==2 {print $5}')
+        echo "Write a limit (in %):"
+        read LIMIT
+        
         CURRENT_USAGE_PROC=$(df "$MOUNT_PATH" | awk 'NR==2 {print $5}' | sed 's/%//')
+        
         if [ "$CURRENT_USAGE_PROC" -gt "$LIMIT" ]; then
         	echo "We need archieve"
-        	FILES_TO_ARCHIVE=2
-    
-    		echo "Archiving $FILES_TO_ARCHIVE oldest files..."
-    
-    		# Вызываем функцию архивации
-    		if archive_old_files "$MOUNT_PATH" "$FILES_TO_ARCHIVE"; then
+        	echo "Archiving oldest files..."
+        	while [ "$CURRENT_USAGE_PROC" -gt "$LIMIT" ]; do
+        	
+        		FILES_TO_ARCHIVE=1
+    			if archive_old_files "$MOUNT_PATH" "$FILES_TO_ARCHIVE"; then
         
-        	# Проверяем использование после архивации
-        		NEW_USAGE_PROC=$(df "$MOUNT_PATH" | awk 'NR==2 {print $5}' | sed 's/%//')
-        		echo "Disk usage after archiving: ${NEW_USAGE_PROC}%"
-    		else
-        		echo "Archiving failed!"
-        		exit 1
-    		fi
+        			NEW_USAGE_PROC=$(df "$MOUNT_PATH" | awk 'NR==2 {print $5}' | sed 's/%//')
+        			
+    			else
+        			echo "Archiving failed!"
+        			exit 1
+    			fi
+    			
+    			CURRENT_USAGE_PROC=$(df "$MOUNT_PATH" | awk 'NR==2 {print $5}' | sed 's/%//')
+    		done
+    		
+    	else
+    		echo "We dont need to archieve!"
+    			
         fi
-        #echo "$CURRENT_USAGE_PROC"
-        #if [  ]
-    #else
-     #   echo "Image exists but is not currently mounted."
-      #  echo "To mount it use: sudo mount -o loop $IMAGE_PATH $MOUNT_PATH"
-       # echo "To remove it use: sudo rm $IMAGE_PATH"
-    #fi
+        echo "Disk usage after archiving: ${NEW_USAGE_PROC}%"
     exit 1
 fi
 
 echo "Creating disk image..."
-
+BACKUP_DIR="/tmp/backup_$(basename "$TARGET_DIR")_$(date +%s)"
+sudo mkdir -p "$BACKUP_DIR"
+sudo cp -r "$TARGET_DIR"/* "$BACKUP_DIR"/ 2>/dev/null || true
 # Create disk image (100MB)
+echo "Write a capacity:"
+read CAPACITY
 sudo dd if=/dev/zero of="$IMAGE_PATH" bs=1M count="$CAPACITY" oflag=dsync
-#if [ $? -ne 0 ]; then
- #   echo "Error creating disk image!"
-    # Clean up on failure
-  #  sudo rm -f "$IMAGE_PATH"
-   # exit 1
-#fi
 
 # Create filesystem
 sudo mkfs.ext4 "$IMAGE_PATH"
@@ -163,6 +143,12 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+sudo cp -r "$BACKUP_DIR"/* "$MOUNT_PATH"/ 2>/dev/null || true
+
+
+sudo rm -rf "$BACKUP_DIR"
+
 echo "Successfully created and mounted limited storage at: $MOUNT_PATH"
 echo "Disk usage:"
+clear
 df -h "$MOUNT_PATH"
