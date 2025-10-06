@@ -65,11 +65,14 @@ MOUNT_PATH="$TARGET_DIR"
 # Check if image already exists
 if [ -f "$IMAGE_PATH" ] || mount | grep -q "$MOUNT_PATH"; then
     echo "Directory already framed!"
- 
+ 	echo "Percent of usage:"
         df -h "$MOUNT_PATH" | awk 'NR==2 {print $5}'
         echo "Write a limit (in %):"
         read LIMIT
-        
+        if [ "$LIMIT" -lt 1 ] || [ "$LIMIT" -gt 100 ]; then
+        	echo "incorrect data"
+        	exit 1
+        fi
         CURRENT_USAGE_PROC=$(df "$MOUNT_PATH" | awk 'NR==2 {print $5}' | sed 's/%//')
         
         if [ "$CURRENT_USAGE_PROC" -gt "$LIMIT" ]; then
@@ -89,12 +92,12 @@ if [ -f "$IMAGE_PATH" ] || mount | grep -q "$MOUNT_PATH"; then
     			
     			CURRENT_USAGE_PROC=$(df "$MOUNT_PATH" | awk 'NR==2 {print $5}' | sed 's/%//')
     		done
+    		echo "Disk usage after archiving: ${NEW_USAGE_PROC}%"
     		
     	else
     		echo "We dont need to archieve!"
     			
         fi
-        echo "Disk usage after archiving: ${NEW_USAGE_PROC}%"
     exit 1
 fi
 
@@ -105,6 +108,16 @@ sudo cp -r "$TARGET_DIR"/* "$BACKUP_DIR"/ 2>/dev/null || true
 # Create disk image (100MB)
 echo "Write a capacity:"
 read CAPACITY
+if [ "$CAPACITY" -le 0 ]; then
+	echo "incorrect data"
+	exit 1
+fi
+
+AVAILABLE_SPACE=$(df -m "$(dirname "$IMAGE_PATH")" | awk 'NR==2 {print $4}')
+if [ "$CAPACITY" -ge  "$AVAILABLE_SPACE" ]; then
+	echo "Not enough space on device"
+	exit 1
+fi
 sudo dd if=/dev/zero of="$IMAGE_PATH" bs=1M count="$CAPACITY" oflag=dsync
 
 # Create filesystem
@@ -150,5 +163,5 @@ sudo rm -rf "$BACKUP_DIR"
 
 echo "Successfully created and mounted limited storage at: $MOUNT_PATH"
 echo "Disk usage:"
-clear
+#clear
 df -h "$MOUNT_PATH"
