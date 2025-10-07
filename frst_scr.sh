@@ -8,7 +8,8 @@ if ! [ -d "$TARGET_DIR" ]; then
 	exit 1
 fi
 archive_old_files() {
-    local dir="$1"   
+    local dir="$1"
+    #local count = 1
     local backup_dir="Backup"
     mkdir -p "$backup_dir"
     
@@ -19,7 +20,7 @@ archive_old_files() {
         -not -name "$IMAGE_NAME" \
         -printf "%T@\t%p\n" | \
         sort -n | \
-        head -n "$count" | \
+        head -n 1 | \
         cut -f2- > "$temp_list"
     
     if [ ! -s "$temp_list" ]; then
