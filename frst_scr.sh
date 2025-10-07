@@ -8,14 +8,10 @@ if ! [ -d "$TARGET_DIR" ]; then
 	exit 1
 fi
 archive_old_files() {
-    local dir="$1"
-    local count="$2"
-    
-    # Создаем папку Backup если её нет
+    local dir="$1"   
     local backup_dir="Backup"
     mkdir -p "$backup_dir"
     
-    # Получаем список M самых старых файлов с обработкой пробелов
     local temp_list=$(mktemp)
     find "$dir" -maxdepth 1 -type f \
         -not -name ".*" \
@@ -26,7 +22,6 @@ archive_old_files() {
         head -n "$count" | \
         cut -f2- > "$temp_list"
     
-    # Проверяем, есть ли файлы для архивации
     if [ ! -s "$temp_list" ]; then
         echo "No files found for archiving!"
         rm -f "$temp_list"
@@ -39,10 +34,8 @@ archive_old_files() {
 
     cat "$temp_list"
     
-    # Создаем архив из файлов в списке (корректная обработка пробелов)
     if tar -czf "$archive_path" -T "$temp_list" 2>/dev/null; then
         
-        # Удаляем оригинальные файлы после успешной архивации
         while IFS= read -r file; do
             if [ -n "$file" ] && [ -f "$file" ]; then
                 rm -f "$file"
@@ -80,8 +73,7 @@ if [ -f "$IMAGE_PATH" ] || mount | grep -q "$MOUNT_PATH"; then
         	echo "Archiving oldest files..."
         	while [ "$CURRENT_USAGE_PROC" -gt "$LIMIT" ]; do
         	
-        		FILES_TO_ARCHIVE=1
-    			if archive_old_files "$MOUNT_PATH" "$FILES_TO_ARCHIVE"; then
+    			if archive_old_files "$MOUNT_PATH" ; then
         
         			NEW_USAGE_PROC=$(df "$MOUNT_PATH" | awk 'NR==2 {print $5}' | sed 's/%//')
         			
@@ -105,7 +97,6 @@ echo "Creating disk image..."
 BACKUP_DIR="/tmp/backup_$(basename "$TARGET_DIR")_$(date +%s)"
 sudo mkdir -p "$BACKUP_DIR"
 sudo cp -r "$TARGET_DIR"/* "$BACKUP_DIR"/ 2>/dev/null || true
-# Create disk image (100MB)
 echo "Write a capacity:"
 read CAPACITY
 if [ "$CAPACITY" -le 0 ]; then
